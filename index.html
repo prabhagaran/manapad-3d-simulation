@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manapad Hub 3D</title>
+<meta name="description" content="Interactive 3D simulation of the conceptual solar + BESS coastal energy hub and 250-berth charging jetty at Manapad, Tamil Nadu.">
+<link rel="stylesheet" href="styles/fonts.css">
+<link rel="stylesheet" href="styles/sim.css">
+</head>
+<body>
+<canvas id="c" aria-label="3D view of the proposed Manapad energy hub"></canvas>
+<div id="labels" aria-hidden="true"></div>
+
+<div id="loading"><div class="ld-mark"></div><p>Building the 3D site…</p></div>
+
+<header class="top">
+  <div class="brand">
+    <p class="eyebrow">Manapad · Thoothukudi · Tamil Nadu</p>
+    <h1>Coastal Energy Hub <span>3D simulation</span></h1>
+    <p class="caveat">Conceptual layout on the satellite image · energy figures come from the adjustable assumptions, not a design</p>
+  </div>
+  <div class="clock">
+    <div id="clk">10:30</div>
+    <div id="phase">—</div>
+  </div>
+</header>
+
+<nav class="views" aria-label="Camera views">
+  <button data-view="overview" class="on"><b>1</b>Overview</button>
+  <button data-view="jetty"><b>2</b>Jetty</button>
+  <button data-view="solar"><b>3</b>Solar field</button>
+  <button data-view="bess"><b>4</b>BESS</button>
+  <button data-view="mouth"><b>5</b>Channel mouth</button>
+  <button data-view="walk"><b>6</b>On the jetty</button>
+  <button id="followBtn" title="Click any boat, or follow the next one leaving"><b>7</b>Follow a boat</button>
+</nav>
+
+<section class="live" aria-label="Live power flows">
+  <div class="tile pv"><span class="k">Solar</span><span class="v" id="kPv">0</span><span class="u">kW</span></div>
+  <div class="tile bess"><span class="k" id="kBessK">Battery</span><span class="v" id="kBess">0</span><span class="u">kW</span>
+    <div class="soc"><i id="kSocBar"></i></div><span class="sub" id="kSoc">0 % charged</span></div>
+  <div class="tile grid"><span class="k">Grid import</span><span class="v" id="kGrid">0</span><span class="u">kW</span></div>
+  <div class="tile load"><span class="k">Boats charging</span><span class="v" id="kLoad">0</span><span class="u">kW</span><span class="sub" id="kCharging">0 boats</span></div>
+  <div class="tile fleet"><span class="k">Fleet</span>
+    <span class="fl"><i class="d sea"></i><b id="kSea">0</b> at sea</span>
+    <span class="fl"><i class="d mov"></i><b id="kMov">0</b> under way</span>
+    <span class="fl"><i class="d full"></i><b id="kFull">0</b> moored, full</span>
+  </div>
+</section>
+
+<section class="timeline" aria-label="Time controls">
+  <div class="tl-ctrl">
+    <button id="play" aria-label="Pause">❚❚</button>
+    <div class="speeds" role="group" aria-label="Simulation speed">
+      <button data-speed="1">Real time</button>
+      <button data-speed="30">30×</button>
+      <button data-speed="120" class="on">120×</button>
+      <button data-speed="600">600×</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--pv)"></i>Solar → boats</span>
+      <span><i style="background:var(--bess)"></i>Battery → boats</span>
+      <span><i style="background:var(--grid)"></i>Grid → boats</span>
+      <span><i class="ln" style="border-color:var(--pv)"></i>Solar output</span>
+      <span><i class="ln dot" style="border-color:var(--bess)"></i>Battery charge %</span>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+    <canvas id="cursor"></canvas>
+    <input id="scrub" type="range" min="0" max="1439.9" step="1" value="630" aria-label="Time of day">
+  </div>
+</section>
+
+<button id="panelBtn" class="panel-btn" aria-expanded="false" aria-controls="panel">Assumptions &amp; results</button>
+<aside id="panel" class="panel" hidden>
+  <div class="p-head"><h2>Assumptions</h2><button id="panelClose" aria-label="Close">✕</button></div>
+  <p class="p-note">Illustrative starting values for exploring the concept. Change them to see the effect; none of them is design data.</p>
+  <div id="params"></div>
+  <div class="p-actions"><button id="reset">Reset to starting values</button></div>
+  <h2>Result for one day</h2>
+  <div id="warn" class="warn" hidden></div>
+  <dl id="results"></dl>
+  <h2>Show</h2>
+  <div class="toggles">
+    <label><input type="checkbox" id="tLabels" checked> Labels</label>
+    <label><input type="checkbox" id="tFlow" checked> Energy flow</label>
+    <label><input type="checkbox" id="tTown" checked> Town buildings &amp; trees</label>
+    <label><input type="checkbox" id="tShadow" checked> Shadows</label>
+    <label><input type="checkbox" id="tGlow" checked> Night glow</label>
+  </div>
+  <p class="p-note keys">Keys: <b>Space</b> play/pause · <b>← →</b> ±15 min · <b>1–7</b> views · <b>H</b> hide panels · <b>F</b> full screen</p>
+</aside>
+
+<div id="boatcard" class="boatcard" hidden>
+  <button class="x" id="bcClose" aria-label="Close">✕</button>
+  <h3 id="bcTitle">Boat</h3>
+  <dl id="bcBody"></dl>
+  <div class="bc-soc"><i id="bcSoc"></i></div>
+  <button id="bcFollow">Follow this boat</button>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="scripts/vendor/three.bundle.js"></script>
+<script src="scripts/texture-data.js"></script>
+<script src="scripts/site-geometry.js"></script>
+<script src="scripts/scenery-data.js"></script>
+<script src="scripts/energy-model.js"></script>
+<script src="scripts/world.js"></script>
+<script src="scripts/app.js"></script>
+</body>
+</html>
