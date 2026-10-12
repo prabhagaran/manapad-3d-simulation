@@ -142,7 +142,7 @@
     overview: { p: [470, 250, 120], t: [-20, 0, 40] },
     jetty: { p: [-5, 34, -70], t: [-95, 0, 25] },
     solar: { p: [175, 115, 175], t: [40, 0, -25] },
-    bess: { p: [262, 38, 178], t: [196, 3, 122] },
+    station: { p: [250, 32, 165], t: [200, 3, 122] },
     mouth: { p: [330, 105, 10], t: [205, 0, 175] },
     walk: null
   };
@@ -230,7 +230,7 @@
     if (d >= 0) rows.push(["Leaves", hhmm(d)], ["Returns", hhmm(r)], ["Trip energy", `${sim.sch.trip[card].toFixed(1)} kWh`]);
     $("bcBody").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
     $("bcSoc").style.width = `${Math.round((ps.soc || 0) * 100)}%`;
-    $("bcSoc").style.background = (ps.soc || 0) < 0.35 ? "var(--red)" : (ps.soc || 0) < 0.7 ? "var(--pv)" : "var(--bess)";
+    $("bcSoc").style.background = (ps.soc || 0) < 0.35 ? "var(--red)" : (ps.soc || 0) < 0.7 ? "var(--pv)" : "var(--ok)";
   }
 
   /* ---------- labels ---------- */
@@ -240,11 +240,13 @@
     const mk = (anchor, c, title, cls, maxD = 1600) => { const d = document.createElement("div"); d.className = "lbl" + (cls ? " " + cls : ""); d.style.setProperty("--c", c); d.innerHTML = `<b>${title}</b><span></span>`; box.appendChild(d); const L = { d, s: d.querySelector("span"), a: anchor, maxD }; labels.push(L); return L; };
     const A = world.anchors;
     labels.jetty = mk(A.jetty, "var(--load)", "Charging jetty · 250 berths");
-    labels.bess = mk(A.bess, "var(--bess)", "Battery storage (BESS)");
+    labels.station = mk(A.station, "var(--pv)", "Solar inverter station");
+    labels.monitor = mk(A.monitor, "var(--muted)", "Monitoring station", "static", 420);
     labels.pv = mk(A.solar, "var(--pv)", "Solar field");
     labels.grid = mk(A.grid, "var(--grid)", "Grid connection · route assumed", "", 700);
     labels.room = mk(A.room, "var(--muted)", "Charging control room", "static", 380);
     labels.room.s.textContent = "switchgear · metering · chargers";
+    labels.monitor.s.textContent = "SCADA · weather station · CCTV";
   }
   const pv3 = new T.Vector3();
   function placeLabels(show) {
@@ -264,13 +266,12 @@
   /* ---------- live readouts ---------- */
   function readouts() {
     const m = Math.floor(tMin) % 1440;
-    const pv = sim.pv[m], bnet = sim.pvBess[m] - sim.bessLoad[m], grid = sim.grid[m], load = sim.load[m], soc = sim.soc[m];
+    const pv = sim.pv[m], grid = sim.grid[m], load = sim.load[m], exp = sim.export[m], cut = sim.curtail[m];
     $("kPv").textContent = fmt(pv);
-    $("kBess").textContent = fmt(Math.abs(bnet));
-    $("kBessK").textContent = bnet > 1 ? "Battery · charging" : bnet < -1 ? "Battery · supplying" : "Battery · idle";
-    $("kSocBar").style.width = `${Math.round(soc * 100)}%`;
-    $("kSoc").textContent = `${Math.round(soc * 100)} % charged · ${fmt(soc * params.bessKwh)} kWh`;
+    $("kPvSub").textContent = pv > 1 ? `${fmt(sim.pvLoad[m])} kW straight to boats` : "night · inverters idle";
     $("kGrid").textContent = fmt(grid);
+    $("kExp").textContent = fmt(exp + cut);
+    $("kExpK").textContent = cut > 1 && exp < 1 ? "Solar curtailed" : "Solar exported";
     $("kLoad").textContent = fmt(load);
     let sea = 0, mov = 0, ch = 0, full = 0;
     for (const p of world.boatPose) { if (!p) continue; if (p.state === "sea") sea++; else if (p.state === "in" || p.state === "out") mov++; else if (p.kw > 0.05) ch++; else if (p.soc > 0.97) full++; }
@@ -280,14 +281,14 @@
     let ph;
     if (mov > 0 && sim.sch.dep.some((d, i) => d >= 0 && world.boatPose[i] && world.boatPose[i].state === "out")) ph = "Boats leaving for the fishing grounds";
     else if (mov > 0) ph = "Boats returning to their berths";
-    else if (sea > 0) ph = pv > 5 ? "Fleet at sea · the sun is filling the battery" : "Fleet at sea";
-    else if (ch > 0) ph = pv > 5 ? (bnet < -1 ? "Charging from solar + battery" : "Charging from the sun") : (bnet < -1 ? "Night charging from the battery" : "Night charging from the grid");
+    else if (sea > 0) ph = pv > 5 ? (exp > 1 ? "Fleet at sea · solar exported to the grid" : "Fleet at sea · solar has no load") : "Fleet at sea";
+    else if (ch > 0) ph = pv > 5 ? (grid > 1 ? "Charging from solar + grid" : "Charging from the sun") : "Night charging from the grid";
     else ph = pv > 5 ? "Fleet moored and full" : "Fleet moored and full · ready for the morning";
     $("phase").textContent = ph;
     if (labels.pv) {
       labels.pv.s.textContent = pv > 1 ? `${fmt(pv)} kW generating` : "night · no output";
-      labels.bess.s.textContent = `${Math.round(soc * 100)} % · ${bnet > 1 ? "charging " + fmt(bnet) + " kW" : bnet < -1 ? "supplying " + fmt(-bnet) + " kW" : "idle"}`;
-      labels.grid.s.textContent = params.gridOn ? (grid > 1 ? `importing ${fmt(grid)} kW` : "standby") : "disconnected";
+      labels.station.s.textContent = pv > 1 ? `2 inverters · ${fmt(pv)} kW AC` : "inverters idle (night)";
+      labels.grid.s.textContent = params.gridOn ? (grid > 1 ? `importing ${fmt(grid)} kW` : exp > 1 ? `exporting ${fmt(exp)} kW` : "standby") : "disconnected";
       labels.jetty.s.textContent = `${ch} charging · ${fmt(load)} kW`;
     }
     if (card >= 0) fillCard();
@@ -311,7 +312,12 @@
     for (const f of [0.5, 1]) { g.beginPath(); g.moveTo(X0, y(max * f)); g.lineTo(X1, y(max * f)); g.stroke(); g.fillText(fmt(max * f), 2 * dpr, y(max * f) + 9 * dpr); }
     g.fillText("kW", 2 * dpr, Y0 - 2 * dpr);
     // stacked supply to boats
-    const layers = [[sim.pvLoad, col("--pv")], [sim.bessLoad, col("--bess")], [sim.grid, col("--grid")]];
+    // solar surplus (exported or curtailed): light band between solar used and solar output
+    g.beginPath(); g.moveTo(x(0), y(sim.pvLoad[0]));
+    for (let m = 0; m < 1440; m += 2) g.lineTo(x(m), y(sim.pv[m]));
+    for (let m = 1438; m >= 0; m -= 2) g.lineTo(x(m), y(sim.pvLoad[m]));
+    g.closePath(); g.globalAlpha = 0.22; g.fillStyle = col("--pv"); g.fill(); g.globalAlpha = 1;
+    const layers = [[sim.pvLoad, col("--pv")], [sim.grid, col("--grid")]];
     const base = new Float32Array(1440);
     for (const [arr, c] of layers) {
       g.beginPath(); g.moveTo(x(0), y(base[0]));
@@ -327,10 +333,6 @@
     // solar output line
     g.beginPath(); for (let m = 0; m < 1440; m += 2) (m ? g.lineTo : g.moveTo).call(g, x(m), y(sim.pv[m]));
     g.strokeStyle = col("--pv"); g.lineWidth = 1.6 * dpr; g.stroke();
-    // battery % (right axis)
-    g.beginPath(); for (let m = 0; m < 1440; m += 2) (m ? g.lineTo : g.moveTo).call(g, x(m), Y0 - (Y0 - Y1) * sim.soc[m]);
-    g.strokeStyle = col("--bess"); g.setLineDash([2 * dpr, 3 * dpr]); g.lineWidth = 1.5 * dpr; g.stroke(); g.setLineDash([]);
-    g.fillStyle = "rgba(61,220,151,.9)"; g.fillText("100%", X1 + 3 * dpr, Y1 + 9 * dpr); g.fillText("0%", X1 + 3 * dpr, Y0);
     chart._x = x; chart._dpr = dpr;
   }
   function drawCursor() {
@@ -358,10 +360,9 @@
   const PARAMS = [
     ["pvKwp", "Solar field size", 250, 3000, 50, (v) => `${fmt(v)} kWp`, "≈ 67 tables in the drawn layout; real capacity depends on module choice and setbacks"],
     ["sky", "Sky", null, null, null, null, null, [[1, "Clear"], [0.85, "Typical"], [0.7, "Hazy"], [0.5, "Overcast / monsoon"]]],
-    ["bessKwh", "Battery energy", 0, 6000, 100, (v) => `${fmt(v)} kWh`, "usable energy; four 40 ft containers are drawn whatever the size"],
-    ["bessKw", "Battery power (PCS)", 0, 3000, 50, (v) => `${fmt(v)} kW`],
     ["gridOn", "Grid connection", null, null, null, null, null, [[true, "Available"], [false, "None (off-grid)"]]],
-    ["gridKw", "Grid import limit", 0, 2000, 50, (v) => `${fmt(v)} kW`],
+    ["exportOn", "Surplus solar", null, null, null, null, null, [[true, "Exported to the grid"], [false, "Curtailed"]]],
+    ["gridKw", "Grid connection limit", 0, 2500, 50, (v) => `${fmt(v)} kW`, "applies to import and export"],
     ["boats", "Boats fishing today", 0, 250, 1, (v) => `${v} of 250`],
     ["tripKwh", "Energy per trip (average)", 5, 60, 1, (v) => `${v} kWh`, "each boat varies ±20 % around this"],
     ["packKwh", "Boat battery (usable)", 10, 80, 1, (v) => `${v} kWh`],
@@ -411,10 +412,10 @@
       ["Boat charging demand", `${fmt(k.demand)} kWh`, true],
       ["Solar generated", `${fmt(k.pv)} kWh`],
       ["  used by boats directly", `${fmt(k.pvLoad)} kWh`],
-      ["  stored in the battery", `${fmt(k.pvBess)} kWh`],
-      ["  spilled (no use / export)", `${fmt(k.curtail)} kWh`],
-      ["Battery delivered to boats", `${fmt(k.bessLoad)} kWh`],
+      ["  exported to the grid", `${fmt(k.export)} kWh`],
+      ["  curtailed", `${fmt(k.curtail)} kWh`],
       ["Grid import", `${fmt(k.grid)} kWh`],
+      ["Net from the grid (import − export)", `${fmt(k.netGrid)} kWh`, true],
       ["Boat energy from the sun", `${share} %`, true],
       ["Peak charging load", `${fmt(k.peakKw)} kW`],
       ["Boats not full at departure", `${k.depShort}${k.depShort ? ` (${fmt(k.depShortKwh)} kWh short)` : ""}`, k.depShort > 0]
@@ -422,8 +423,9 @@
     $("results").innerHTML = rows.map(([a, b, hl]) => `<dt>${a.replace(/^  /, "&nbsp;&nbsp;↳ ")}</dt><dd class="${hl ? "hl" : ""}">${b}</dd>`).join("");
     const w = [];
     if (P.tripKwh * 1.2 > P.packKwh) w.push("Some trips need more energy than the boat battery holds, so those boats come back empty.");
-    if (k.depShort > 0) w.push(`${k.depShort} boats leave before they are full. Add battery, solar, grid capacity or charging power.`);
-    if (!P.gridOn && k.unmet > 1) w.push("Off-grid: charging is held back when solar and battery cannot keep up (dashed red line in the chart).");
+    if (k.depShort > 0) w.push(`${k.depShort} boats leave before they are full. Add solar, grid capacity or charging power.`);
+    if (!P.gridOn && k.unmet > 1) w.push("Off-grid with no storage: boats can only charge while the sun is up (dashed red line in the chart).");
+    if (k.curtail > 1) w.push(`${fmt(k.curtail)} kWh of solar is wasted because nothing can take it while the fleet is at sea.`);
     $("warn").hidden = !w.length; $("warn").innerHTML = w.join("<br>");
   }
 
@@ -448,7 +450,7 @@
     if (k === " ") { setPlay(!playing); e.preventDefault(); }
     else if (k === "ArrowRight") { tMin = (tMin + 15) % 1440; e.preventDefault(); }
     else if (k === "ArrowLeft") { tMin = (tMin - 15 + 1440) % 1440; e.preventDefault(); }
-    else if (k >= "1" && k <= "6") setView(["overview", "jetty", "solar", "bess", "mouth", "walk"][Number(k) - 1]);
+    else if (k >= "1" && k <= "6") setView(["overview", "jetty", "solar", "station", "mouth", "walk"][Number(k) - 1]);
     else if (k === "7") $("followBtn").click();
     else if (k === "h" || k === "H") document.body.classList.toggle("hide-ui");
     else if (k === "f" || k === "F") { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); }

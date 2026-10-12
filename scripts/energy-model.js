@@ -1,6 +1,8 @@
 /* Manapad 3D simulation — energy + fleet model (pure, no graphics).
-   One-minute time step. Runs several identical days and keeps the last one, so the
-   battery's starting charge is the steady-state value, not a guess.
+   One-minute time step. Runs several identical days and keeps the last one, so each
+   boat's battery level at midnight is the steady-state value, not a guess.
+   No battery storage at the hub: solar feeds the chargers directly through the inverters,
+   any surplus is exported to the grid (or curtailed off-grid), any shortfall is imported.
    Every number in DEFAULTS is an ILLUSTRATIVE ASSUMPTION for exploring the concept,
    not design data. All of them are adjustable in the Assumptions panel. */
 (function (root) {
@@ -10,12 +12,9 @@
     pvKwp: 1000,        // solar field DC size (kWp)
     sky: 0.85,          // 1 = clear sky, 0.85 = typical, 0.5 = overcast / monsoon
     pr: 0.78,           // PV performance ratio (soiling, heat, inverter, cabling)
-    bessKwh: 2000,      // usable battery energy (kWh)
-    bessKw: 1000,       // PCS power limit (kW)
-    socMin: 0.10, socMax: 0.95,
-    etaCh: 0.95, etaDis: 0.95,   // one-way efficiencies (≈ 90 % round trip)
     gridOn: true,
-    gridKw: 800,        // grid import limit at the connection point (kW)
+    exportOn: true,     // surplus solar exported to the grid (net metering / banking); else curtailed
+    gridKw: 1000,       // grid connection limit, import and export (kW)
     boats: 250,         // boats that fish today (the rest stay moored)
     tripKwh: 22,        // average energy one trip takes from the boat battery
     packKwh: 30,        // usable boat battery
@@ -93,14 +92,12 @@
     const days = 3;
     const out = {
       p, sch,
-      pv: new Float32Array(MIN), pvLoad: new Float32Array(MIN), pvBess: new Float32Array(MIN),
-      curtail: new Float32Array(MIN), bessLoad: new Float32Array(MIN), grid: new Float32Array(MIN),
-      load: new Float32Array(MIN), unmet: new Float32Array(MIN), soc: new Float32Array(MIN),
+      pv: new Float32Array(MIN), pvLoad: new Float32Array(MIN), export: new Float32Array(MIN),
+      curtail: new Float32Array(MIN), grid: new Float32Array(MIN),
+      load: new Float32Array(MIN), unmet: new Float32Array(MIN),
       boatSoc: new Float32Array(n * MIN), boatKw: new Float32Array(n * MIN),
       charging: new Uint16Array(MIN)
     };
-    let e = p.bessKwh * 0.5;                    // BESS energy (kWh)
-    const eMin = p.bessKwh * p.socMin, eMax = p.bessKwh * p.socMax;
     const bs = new Float32Array(n).fill(p.packKwh); // boat battery energy (kWh)
     const atBerth = new Uint8Array(n).fill(1);
     const want = new Float32Array(n);
@@ -132,15 +129,10 @@
         const pv = p.pvKwp * pvFraction(p, m);
         let pvLoad = Math.min(pv, load);
         let surplus = pv - pvLoad, deficit = load - pvLoad;
-        // surplus -> BESS -> curtail/export
-        let pvBess = Math.min(surplus, p.bessKw, (eMax - e) / (dt * p.etaCh));
-        pvBess = Math.max(0, pvBess);
-        e += pvBess * dt * p.etaCh;
-        const curtail = surplus - pvBess;
-        // deficit -> BESS -> grid -> unmet
-        let bessLoad = Math.max(0, Math.min(deficit, p.bessKw, (e - eMin) * p.etaDis / dt));
-        e -= bessLoad * dt / p.etaDis;
-        deficit -= bessLoad;
+        // surplus -> grid export (up to the connection limit) -> curtail
+        const exp = p.gridOn && p.exportOn ? Math.min(surplus, p.gridKw) : 0;
+        const curtail = surplus - exp;
+        // deficit -> grid -> held back
         const grid = p.gridOn ? Math.min(deficit, p.gridKw) : 0;
         deficit -= grid;
         const unmet = Math.max(0, deficit);
@@ -151,9 +143,9 @@
           if (last) out.boatSoc[i * MIN + m] = bs[i] / p.packKwh;
         }
         if (last) {
-          out.pv[m] = pv; out.pvLoad[m] = pvLoad; out.pvBess[m] = pvBess; out.curtail[m] = curtail;
-          out.bessLoad[m] = bessLoad; out.grid[m] = grid; out.load[m] = load - unmet; out.unmet[m] = unmet;
-          out.soc[m] = e / p.bessKwh; out.charging[m] = nch;
+          out.pv[m] = pv; out.pvLoad[m] = pvLoad; out.export[m] = exp; out.curtail[m] = curtail;
+          out.grid[m] = grid; out.load[m] = load - unmet; out.unmet[m] = unmet;
+          out.charging[m] = nch;
         }
       }
     }
@@ -161,13 +153,14 @@
     const sum = (a) => { let s = 0; for (let i = 0; i < MIN; i++) s += a[i]; return s * dt; };
     let peak = 0; for (let m = 0; m < MIN; m++) peak = Math.max(peak, out.load[m] + out.unmet[m]);
     out.kpi = {
-      pv: sum(out.pv), pvLoad: sum(out.pvLoad), pvBess: sum(out.pvBess), curtail: sum(out.curtail),
-      bessLoad: sum(out.bessLoad), grid: sum(out.grid), load: sum(out.load), unmet: sum(out.unmet),
+      pv: sum(out.pv), pvLoad: sum(out.pvLoad), export: sum(out.export), curtail: sum(out.curtail),
+      grid: sum(out.grid), load: sum(out.load), unmet: sum(out.unmet),
       peakKw: peak, depShort, depShortKwh: depShortSum, active: sch.active,
       demand: (() => { let s = 0; for (let i = 0; i < n; i++) s += sch.trip[i]; return s; })()
     };
     const k = out.kpi;
-    k.solarShare = k.load > 0 ? (k.pvLoad + k.bessLoad) / k.load : 0; // BESS energy here all came from PV
+    k.solarShare = k.load > 0 ? k.pvLoad / k.load : 0;            // solar used directly by the boats
+    k.netGrid = k.grid - k.export;                                  // < 0: the hub is a net exporter
     return out;
   }
 

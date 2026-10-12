@@ -1,6 +1,6 @@
 # Manapad Coastal Energy Hub — 3D simulation
 
-An interactive 3D model of the **conceptual** solar + BESS hub and 250-berth charging jetty at Manapad, Thoothukudi District, Tamil Nadu, running through a full day: boats leave before dawn, the solar field fills the battery, boats come back, plug in and charge, and the battery and grid cover the evening.
+An interactive 3D model of the **conceptual** solar-powered hub and 250-berth charging jetty at Manapad, Thoothukudi District, Tamil Nadu, running through a full day: boats leave before dawn, the solar field exports to the grid while they are at sea, then the boats come back, plug in and charge from solar and grid. There is no battery storage at the hub.
 
 The site sits on the same satellite image and traced geometry as the presentation (`manapad-presentation`), so every zone, table, berth and route is in the same place. Energy figures come from adjustable assumptions in the app, not from a design. Nothing here claims the site is surveyed, designed or approved.
 
@@ -33,7 +33,7 @@ manapad-3d-simulation/
 │   ├── scenery-data.js         generated: town blocks + trees (from image colour)
 │   ├── texture-data.js         generated: satellite image + water mask as data URIs
 │   ├── energy-model.js         one-day energy + fleet simulation (no graphics)
-│   ├── world.js                3D builders: ground, water, town, solar, BESS, jetty, boats, flows
+│   ├── world.js                3D builders: ground, water, town, solar, inverter + monitoring stations, jetty, boats, flows
 │   └── app.js                  renderer, sky and sun, cameras, UI, time loop
 ├── assets/
 │   ├── manapad-satellite.jpg   the satellite image (same file as the deck)
@@ -48,7 +48,7 @@ manapad-3d-simulation/
 | Key / control | Action |
 |---|---|
 | Drag · right-drag · wheel | Orbit · pan · zoom |
-| 1–6 or the left buttons | Overview · Jetty · Solar field · BESS · Channel mouth · On the jetty (eye level) |
+| 1–6 or the left buttons | Overview · Jetty · Solar field · Inverter station · Channel mouth · On the jetty (eye level) |
 | 7 or **Follow a boat** | Follows the next boat to move; jumps the clock forward if none is moving |
 | Click a boat | Berth, status, battery level, departure and return times; **Follow this boat** |
 | Space | Play / pause |
@@ -66,10 +66,11 @@ The app follows the operating system's "reduce motion" setting: it starts paused
 - **Satellite ground** with an animated translucent water surface on the water areas; the image is mirrored outward and faded by haze, so there is no hard edge.
 - **Town**: about 4,500 building blocks and 1,700 trees generated from the image colour. Roofs show the real satellite pixels. Heights are random (3–9.5 m) and windows light up at night. This is context, not a survey.
 - **Solar field**: the 67 tables of the deck layout (14 × 5.6 m, 10° tilt, facing SSW) with legs, an inverter station and a perimeter fence.
-- **BESS compound**: four 40 ft battery containers on plinths with HVAC units, a PCS skid with transformer, a fenced gravel pad, the charging control room and an assumed grid pole line.
+- **Solar inverter station**: two central inverter skids with DC combiner boxes and status lights, an inverter-duty transformer and an HT ring main unit on a fenced gravel pad.
+- **Monitoring station**: a SCADA/control room with rooftop telemetry mast and dish, a weather station (pyranometer, reference cell, turning anemometer, wind vane) and two CCTV poles. Next to the compound are the charging control room and an assumed grid pole line.
 - **Jetty**: the spine walkway on piles, 26 long finger piers, shore bridges, lamp posts and one charging pedestal per pen of five berths.
 - **250 boats** (8.2 × 2.2 m FRP hulls with a battery box and electric outboard). Each has a status light (red → amber → green by charge, pulsing while charging) and a cable to its pedestal that glows cyan while charging. Boats reverse out, turn, run the channel on the starboard side, cross the mouth and leave for sea; on return they come in the same way and nose into their berth.
-- **Energy flow**: animated lines from the solar blocks to the PCS, between the PCS and the battery (direction shows charge or discharge), from the grid, and along the jetty feeder. Speed and brightness follow the power.
+- **Energy flow**: animated lines from the solar blocks to the inverters and transformer, along the grid line (violet inward when importing, amber outward when exporting), and along the jetty feeder. Speed and brightness follow the power.
 - **Day and night**: the sun position for Manapad in mid-October, sky, haze, stars, lamp light on the deck and water, and lit windows.
 
 ## Editing

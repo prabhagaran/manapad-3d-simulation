@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manapad Hub 3D</title>
-<meta name="description" content="Interactive 3D simulation of the conceptual solar + BESS coastal energy hub and 250-berth charging jetty at Manapad, Tamil Nadu.">
+<meta name="description" content="Interactive 3D simulation of the conceptual solar-powered coastal energy hub and 250-berth charging jetty at Manapad, Tamil Nadu.">
 <link rel="stylesheet" href="styles/fonts.css">
 <link rel="stylesheet" href="styles/sim.css">
 </head>
@@ -30,16 +30,15 @@
   <button data-view="overview" class="on"><b>1</b>Overview</button>
   <button data-view="jetty"><b>2</b>Jetty</button>
   <button data-view="solar"><b>3</b>Solar field</button>
-  <button data-view="bess"><b>4</b>BESS</button>
+  <button data-view="station"><b>4</b>Inverter station</button>
   <button data-view="mouth"><b>5</b>Channel mouth</button>
   <button data-view="walk"><b>6</b>On the jetty</button>
   <button id="followBtn" title="Click any boat, or follow the next one leaving"><b>7</b>Follow a boat</button>
 </nav>
 
 <section class="live" aria-label="Live power flows">
-  <div class="tile pv"><span class="k">Solar</span><span class="v" id="kPv">0</span><span class="u">kW</span></div>
-  <div class="tile bess"><span class="k" id="kBessK">Battery</span><span class="v" id="kBess">0</span><span class="u">kW</span>
-    <div class="soc"><i id="kSocBar"></i></div><span class="sub" id="kSoc">0 % charged</span></div>
+  <div class="tile pv"><span class="k">Solar (inverter output)</span><span class="v" id="kPv">0</span><span class="u">kW</span><span class="sub" id="kPvSub">—</span></div>
+  <div class="tile exp"><span class="k" id="kExpK">Solar exported</span><span class="v" id="kExp">0</span><span class="u">kW</span></div>
   <div class="tile grid"><span class="k">Grid import</span><span class="v" id="kGrid">0</span><span class="u">kW</span></div>
   <div class="tile load"><span class="k">Boats charging</span><span class="v" id="kLoad">0</span><span class="u">kW</span><span class="sub" id="kCharging">0 boats</span></div>
   <div class="tile fleet"><span class="k">Fleet</span>
@@ -60,10 +59,9 @@
     </div>
     <div class="legend">
       <span><i style="background:var(--pv)"></i>Solar → boats</span>
-      <span><i style="background:var(--bess)"></i>Battery → boats</span>
       <span><i style="background:var(--grid)"></i>Grid → boats</span>
+      <span><i style="background:var(--pv);opacity:.3"></i>Solar exported / curtailed</span>
       <span><i class="ln" style="border-color:var(--pv)"></i>Solar output</span>
-      <span><i class="ln dot" style="border-color:var(--bess)"></i>Battery charge %</span>
     </div>
   </div>
   <div class="chart-wrap">

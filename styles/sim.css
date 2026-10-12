@@ -8,7 +8,7 @@
   --muted: #93a3ae;
   --line: rgba(244, 240, 230, .14);
   --pv: #f5b83d;
-  --bess: #3ddc97;
+  --ok: #3ddc97;   /* boat fully charged */
   --grid: #a58bff;
   --load: #4cc9f0;
   --warn: #e98c5a;
@@ -59,13 +59,11 @@ body.hide-ui .top, body.hide-ui .views, body.hide-ui .live, body.hide-ui .timeli
 .tile .v { font-family: var(--f-display); font-weight: 700; font-size: 28px; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--c); }
 .tile .u { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
 .tile .sub { grid-column: 1 / -1; font-size: 11.5px; color: #c5cfd6; }
-.tile.pv { --c: var(--pv); } .tile.bess { --c: var(--bess); } .tile.grid { --c: var(--grid); } .tile.load { --c: var(--load); } .tile.fleet { --c: var(--paper); }
-.soc { grid-column: 1 / -1; height: 5px; background: rgba(255,255,255,.1); border-radius: 3px; overflow: hidden; margin: 4px 0 3px; }
-.soc i { display: block; height: 100%; width: 0; background: var(--bess); border-radius: 3px; transition: width .3s; }
+.tile.pv { --c: var(--pv); } .tile.exp { --c: #f7d58a; } .tile.grid { --c: var(--grid); } .tile.load { --c: var(--load); } .tile.fleet { --c: var(--paper); }
 .fl { grid-column: 1 / -1; font-size: 12.5px; color: #dfe5ea; display: flex; align-items: center; gap: 6px; line-height: 1.55; }
 .fl b { font-family: var(--f-mono); font-weight: 500; min-width: 3ch; text-align: right; color: var(--paper); }
 .d { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.d.sea { background: #6aa6c6; } .d.mov { background: #fff; } .d.full { background: var(--bess); }
+.d.sea { background: #6aa6c6; } .d.mov { background: #fff; } .d.full { background: var(--ok); }
 
 /* timeline */
 .timeline { position: fixed; left: var(--gap); right: var(--gap); bottom: var(--gap); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 8px 12px 10px; z-index: 5; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
@@ -126,7 +124,7 @@ body.hide-ui .top, body.hide-ui .views, body.hide-ui .live, body.hide-ui .timeli
 .boatcard dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0 0 8px; font-size: 12.5px; }
 .boatcard dt { color: var(--muted); } .boatcard dd { margin: 0; font-family: var(--f-mono); }
 .bc-soc { height: 6px; background: rgba(255,255,255,.1); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
-.bc-soc i { display: block; height: 100%; background: var(--bess); width: 0; }
+.bc-soc i { display: block; height: 100%; background: var(--ok); width: 0; }
 .toast { position: fixed; left: 50%; top: calc(var(--gap) + 90px); transform: translateX(-50%); background: rgba(9,22,33,.94); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; z-index: 30; }
 
 /* small screens */

@@ -69,12 +69,6 @@
     g.fillStyle = "#f2c230"; g.beginPath(); g.moveTo(w - 150, 90); g.lineTo(w - 125, 115); g.lineTo(w - 150, 140); g.lineTo(w - 175, 115); g.closePath(); g.fill();
     g.fillStyle = "#1d2a33"; g.font = "bold 28px Arial"; g.fillText("!", w - 154, 125);
   });
-  const containerEndTex = () => canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = "#dfe3e6"; g.fillRect(0, 0, w, h);
-    g.fillStyle = "#9aa3aa"; g.fillRect(30, 40, 196, 150);
-    g.fillStyle = "#2b3238"; g.beginPath(); g.arc(80, 115, 42, 0, 7); g.fill(); g.beginPath(); g.arc(176, 115, 42, 0, 7); g.fill();
-    g.strokeStyle = "#6f7880"; g.lineWidth = 4; for (const cx of [80, 176]) for (let a = 0; a < 6; a++) { g.beginPath(); g.moveTo(cx, 115); g.lineTo(cx + Math.cos(a) * 40, 115 + Math.sin(a) * 40); g.stroke(); }
-  });
   const deckTex = () => canvasTex(256, 64, (g, w, h) => {
     g.fillStyle = "#b8b1a3"; g.fillRect(0, 0, w, h);
     for (let x = 0; x < w; x += 16) { g.fillStyle = "rgba(60,50,40,.18)"; g.fillRect(x, 0, 2, h); }
@@ -314,42 +308,80 @@
       scene.add(im, new T.LineSegments(lg, new T.LineBasicMaterial({ color: 0x7d878c, transparent: true, opacity: 0.4 })));
     }
 
-    /* ---------- BESS compound, PCS + transformer, charging control room ---------- */
-    (function bess() {
+    /* ---------- solar inverter station, monitoring station, charging control room ----------
+       No battery storage. The compound on the old BESS footprint holds two central inverter skids,
+       the inverter-duty transformer and HT ring main unit, and a monitoring station
+       (SCADA room, weather station, CCTV). Sizes are typical, not designed. */
+    (function station() {
       const b = S.bess, pc = S.pcs, sw = S.swap;
       const c0 = W(b.x + b.w / 2, b.y + b.h / 2);
       const pad = new T.Mesh(new T.BoxGeometry(b.w + 20, 0.3, b.h + 14), new T.MeshStandardMaterial({ color: 0xa8a49b, roughness: 1 }));
       pad.position.set(c0.x - 6, 0.15, c0.z); pad.receiveShadow = true; scene.add(pad);
-      const endT = containerEndTex(), roofM = new T.MeshStandardMaterial({ color: 0xd5d9dc, roughness: 0.7 });
-      const cont = [];
-      const L = 12.19, Wd = 2.44, Hh = 2.9;
-      [[0, 0], [1, 0], [0, 1], [1, 1]].forEach(([i, j], n) => {
-        const sideM = new T.MeshStandardMaterial({ map: containerSideTex(`BESS-0${n + 1}`), roughness: 0.55, metalness: 0.15 });
-        const endM = new T.MeshStandardMaterial({ map: endT, roughness: 0.6 });
-        const m = new T.Mesh(new T.BoxGeometry(L, Hh, Wd), [endM, endM, roofM, roofM, sideM, sideM]);
-        const p = W(b.x + L / 2 + i * (L + 2.6), b.y + 5 + j * 12);
-        m.position.set(p.x, 0.3 + Hh / 2 + 0.15, p.z); m.castShadow = m.receiveShadow = true; scene.add(m); cont.push(m);
-        // plinth blocks + HVAC hood on the +X end
-        const pl = new T.Mesh(new T.BoxGeometry(L - 0.4, 0.3, Wd - 0.2), new T.MeshStandardMaterial({ color: 0x7d7a74 })); pl.position.set(p.x, 0.45, p.z); scene.add(pl);
-        const hv = new T.Mesh(new T.BoxGeometry(0.5, 1.6, 1.8), new T.MeshStandardMaterial({ color: 0xb9c0c5, roughness: 0.5 })); hv.position.set(p.x + L / 2 + 0.25, 1.9, p.z); hv.castShadow = true; scene.add(hv);
+      const std = (c, r = 0.6, m = 0.15) => new T.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
+      const add = (geo, mat, x, y, z, parent = scene) => { const o = new T.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = o.receiveShadow = true; parent.add(o); return o; };
+      // two central inverter skids (outdoor cabinets on concrete plinths)
+      out.leds = [];
+      const ledG = new T.BoxGeometry(0.08, 0.12, 0.3);
+      [[1307, 765, "INV-01"], [1307, 777, "INV-02"]].forEach(([x, y, label]) => {
+        const p = W(x, y), g = new T.Group(); g.position.copy(p); scene.add(g);
+        add(new T.BoxGeometry(7.4, 0.3, 3.4), std(0x8c877e, 1, 0), 0, 0.45, 0, g);
+        const side = new T.MeshStandardMaterial({ map: containerSideTex(label), roughness: 0.55, metalness: 0.15 });
+        const plain = std(0xd9dde0, 0.55);
+        add(new T.BoxGeometry(6.0, 2.3, 2.4), [plain, plain, std(0xc9cfd3, 0.7), plain, side, side], -0.4, 1.75, 0, g);
+        add(new T.BoxGeometry(6.3, 0.12, 2.7), std(0xaab2b8, 0.5, 0.4), -0.4, 2.96, 0, g);            // rain canopy
+        add(new T.BoxGeometry(1.0, 1.6, 1.2), std(0xb8bfc4, 0.6), 3.1, 1.4, 0, g);                      // DC combiner / AC breaker box
+        for (let k = 0; k < 3; k++) { const l = add(ledG, new T.MeshBasicMaterial({ color: 0x3ddc97 }), 2.62, 2.5 - k * 0.2, 0.5, g); out.leds.push(l); }
       });
-      out.containers = cont;
-      // status beacons on each container
-      const bg = new T.SphereGeometry(0.18, 10, 8);
-      out.beacons = cont.map((c) => { const s = new T.Mesh(bg, new T.MeshBasicMaterial({ color: 0x3ddc97 })); s.position.set(c.position.x + 5.6, c.position.y + Hh / 2 + 0.2, c.position.z + 0.9); scene.add(s); return s; });
-      // PCS skid + transformer
-      const pcC = W(pc.x + pc.w / 2, pc.y + pc.h / 2);
-      const skid = new T.Group(); skid.position.copy(pcC);
-      const pcsM = new T.MeshStandardMaterial({ color: 0x8fa7b5, roughness: 0.5, metalness: 0.2 });
-      const base = new T.Mesh(new T.BoxGeometry(8, 0.35, 12), new T.MeshStandardMaterial({ color: 0x8c877e })); base.position.y = 0.18; skid.add(base);
-      const cab = new T.Mesh(new T.BoxGeometry(2.4, 2.5, 6), pcsM); cab.position.set(-1.8, 1.6, -2.2); cab.castShadow = true; skid.add(cab);
-      const tr = new T.Group(); tr.position.set(1.6, 0.35, 2.4);
-      const tank = new T.Mesh(new T.BoxGeometry(2.2, 2.0, 2.6), new T.MeshStandardMaterial({ color: 0x6f8592, roughness: 0.5, metalness: 0.3 })); tank.position.y = 1.0; tank.castShadow = true; tr.add(tank);
-      for (let i = 0; i < 9; i++) { const f = new T.Mesh(new T.BoxGeometry(0.06, 1.6, 0.5), tank.material); f.position.set(-1.0 + i * 0.25, 1.0, 1.55); tr.add(f); const f2 = f.clone(); f2.position.z = -1.55; tr.add(f2); }
-      for (let i = 0; i < 3; i++) { const bu = new T.Mesh(new T.CylinderGeometry(0.09, 0.12, 0.7, 8), new T.MeshStandardMaterial({ color: 0x7b4b35 })); bu.position.set(-0.6 + i * 0.6, 2.35, 0); tr.add(bu); }
-      skid.add(tr); scene.add(skid);
-      out.anchors.pcs = v3(pcC.x, 8, pcC.z);
-      out.anchors.bess = v3(c0.x + 2, 9, c0.z);
+      // inverter-duty transformer (finned tank, bushings) + HT ring main unit
+      const tc = W(1320, 771);
+      const tr = new T.Group(); tr.position.set(tc.x, 0.3, tc.z); scene.add(tr);
+      add(new T.BoxGeometry(3.2, 0.3, 3.6), std(0x8c877e, 1, 0), 0, 0.15, 0, tr);
+      const tank = add(new T.BoxGeometry(2.2, 2.0, 2.6), std(0x6f8592, 0.5, 0.3), 0, 1.3, 0, tr);
+      for (let i = 0; i < 9; i++) { add(new T.BoxGeometry(0.06, 1.6, 0.5), tank.material, -1.0 + i * 0.25, 1.3, 1.55, tr); add(new T.BoxGeometry(0.06, 1.6, 0.5), tank.material, -1.0 + i * 0.25, 1.3, -1.55, tr); }
+      for (let i = 0; i < 3; i++) add(new T.CylinderGeometry(0.09, 0.12, 0.7, 8), std(0x7b4b35), -0.6 + i * 0.6, 2.65, 0, tr);
+      const rmu = W(1327, 771);
+      add(new T.BoxGeometry(1.4, 2.0, 2.6), std(0x7f9a8a, 0.55, 0.2), rmu.x, 1.3, rmu.z);
+      // monitoring station: SCADA / control room with rooftop telemetry
+      const mc = W(pc.x + pc.w / 2, pc.y + pc.h / 2);
+      const mon = new T.Group(); mon.position.set(mc.x, 0.3, mc.z); scene.add(mon);
+      const wallTex = canvasTex(512, 128, (g, w, h) => {
+        g.fillStyle = "#ece8de"; g.fillRect(0, 0, w, h);
+        g.fillStyle = "#c9c3b6"; g.fillRect(0, h - 10, w, 10);
+        g.fillStyle = "#5c6b74"; g.fillRect(60, 30, 120, 50); g.fillRect(330, 30, 120, 50);   // windows
+        g.fillStyle = "#3f6f8e"; g.fillRect(225, 22, 62, 106);                                // door
+        g.fillStyle = "#1d2a33"; g.font = "bold 18px Arial"; g.fillText("MONITORING", 196, 16);
+      });
+      const wallM = new T.MeshStandardMaterial({ map: wallTex, roughness: 0.85 }), endM = std(0xece8de, 0.85);
+      add(new T.BoxGeometry(5.2, 3.0, 9.0), [wallM, wallM, std(0xb9b4aa, 0.9), endM, endM, endM], 0, 1.5, 0, mon);
+      add(new T.BoxGeometry(5.6, 0.3, 9.4), std(0xd2cdc2, 0.9), 0, 3.15, 0, mon);              // roof slab / parapet
+      add(new T.BoxGeometry(0.8, 0.6, 1.0), std(0xc7ccd0, 0.5), 2.0, 3.6, -3.2, mon);            // AC condenser
+      add(new T.CylinderGeometry(0.04, 0.05, 4.5, 6), std(0x9aa2a8, 0.4, 0.6), -1.5, 5.5, 3.2, mon);   // telemetry mast
+      const dish = add(new T.SphereGeometry(0.45, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), std(0xe6e9eb, 0.4), -1.5, 4.4, 2.6, mon);
+      dish.rotation.x = -1.1;
+      add(new T.BoxGeometry(0.06, 0.5, 0.06), std(0x2e3a42), -1.5, 8.0, 3.2, mon);
+      // weather station: pyranometer, reference cell, anemometer and vane on a 6 m mast
+      const ws = W(1333, 758);
+      const wsG = new T.Group(); wsG.position.set(ws.x, 0.3, ws.z); scene.add(wsG);
+      add(new T.CylinderGeometry(0.06, 0.08, 6, 8), std(0xb8bfc4, 0.4, 0.6), 0, 3, 0, wsG);
+      add(new T.BoxGeometry(1.6, 0.06, 0.06), std(0xb8bfc4, 0.4, 0.6), 0, 5.2, 0, wsG);
+      add(new T.CylinderGeometry(0.12, 0.14, 0.08, 16), std(0xf0f0ea, 0.3), 0.75, 5.3, 0, wsG);       // pyranometer
+      add(new T.SphereGeometry(0.07, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), std(0xe8f4ff, 0.05, 0.1), 0.75, 5.34, 0, wsG);
+      const refCell = add(new T.BoxGeometry(0.5, 0.03, 0.35), std(0x1f3a5c, 0.25, 0.5), -0.75, 5.35, 0, wsG); refCell.rotation.x = 0.17;
+      const cups = new T.Group(); cups.position.set(0, 6.15, 0); wsG.add(cups);
+      for (let k = 0; k < 3; k++) { const a = k * 2.094; add(new T.BoxGeometry(0.4, 0.02, 0.02), std(0x9aa2a8), Math.cos(a) * 0.2, 0, Math.sin(a) * 0.2, cups).rotation.y = -a; add(new T.SphereGeometry(0.06, 8, 6), std(0xe6e9eb), Math.cos(a) * 0.4, 0, Math.sin(a) * 0.4, cups); }
+      add(new T.CylinderGeometry(0.015, 0.015, 0.3, 6), std(0x9aa2a8), 0, 6.0, 0, wsG);
+      add(new T.BoxGeometry(0.5, 0.18, 0.02), std(0xe6e9eb), 0.2, 5.75, 0, wsG);                       // wind vane
+      add(new T.BoxGeometry(0.4, 0.5, 0.25), std(0xd9dde0, 0.5), 0, 1.6, 0.12, wsG);                   // logger box
+      out.anemometer = cups;
+      // CCTV poles at two compound corners
+      [[1284, 756, 0.8], [1336, 786, -2.4]].forEach(([x, y, yaw]) => {
+        const p = W(x, y), g = new T.Group(); g.position.set(p.x, 0.3, p.z); g.rotation.y = yaw; scene.add(g);
+        add(new T.CylinderGeometry(0.07, 0.1, 7, 8), std(0x8e979c, 0.4, 0.6), 0, 3.5, 0, g);
+        add(new T.BoxGeometry(0.5, 0.18, 0.18), std(0xf2f2ee, 0.4), 0.3, 6.9, 0, g);
+        add(new T.BoxGeometry(0.05, 0.05, 0.05), new T.MeshBasicMaterial({ color: 0xe5484d }), 0.56, 6.95, 0.05, g);
+      });
+      out.anchors.station = v3(c0.x - 6, 9, c0.z - 3);
+      out.anchors.monitor = v3(mc.x, 9, mc.z);
       // compound fence
       const fx0 = pc.x - 5, fx1 = b.x + b.w + 6, fy0 = b.y - 6, fy1 = b.y + b.h + 6;
       fence([W(fx0, fy0), W(fx1, fy0), W(fx1, fy1), W(fx0, fy1)], true);
@@ -581,7 +613,6 @@
       const mesh = new T.Mesh(g, m); mesh.renderOrder = 4; mesh.visible = false; scene.add(mesh);
       return mesh;
     }
-    const pcsXY = [S.pcs.x + S.pcs.w / 2, S.pcs.y + S.pcs.h / 2];
     const feeder = (pts) => {
       const c = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
       return [c, [(c[0] + S.solarHub[0]) / 2, (c[1] + S.solarHub[1]) / 2], S.solarHub];
@@ -593,10 +624,10 @@
       pvA: flow(feeder(S.solarBlocks.A), "#f5b83d", 0.5, 0.32),
       pvB: flow(feeder(S.solarBlocks.B), "#f5b83d", 0.5, 0.32),
       pvC: flow(feeder(S.solarBlocks.C), "#f5b83d", 0.5, 0.32),
-      pvMain: flow([S.solarHub, [1236, 700], [1270, 745], pcsXY], "#f5b83d", 0.5, 0.5),
-      bess: flow([pcsXY, [1300, 771], [1315, 771]], "#3ddc97", 0.6, 0.5),
-      grid: flow(null, "#a58bff", 0, 0.45, out.gridPoles.slice().reverse().map((p) => v3(p.x, 8.6, p.z)).concat([v3(W(...pcsXY).x, 3, W(...pcsXY).z)])),
-      jetty: flow(null, "#4cc9f0", 0, 0.24, [W(...pcsXY, 0.6), W(1260, 772, 0.6), W(1228, 762, 0.6), W(S.landing[0], S.landing[1], DECK + 0.15)].concat(spineEdge.slice().reverse()))
+      pvMain: flow([S.solarHub, [1236, 700], [1270, 745], [1300, 758], [1307, 765]], "#f5b83d", 0.5, 0.5),
+      inv: flow([[1310, 771], [1320, 771]], "#f5b83d", 0.6, 0.45),
+      grid: flow(null, "#a58bff", 0, 0.45, out.gridPoles.slice().reverse().map((p) => v3(p.x, 8.6, p.z)).concat([W(1312, 790, 3), W(1327, 771, 2.2)])),
+      jetty: flow(null, "#4cc9f0", 0, 0.24, [W(1327, 771, 0.6), W(1312, 786, 0.6), W(1262, 788, 0.6), W(1228, 764, 0.6), W(S.landing[0], S.landing[1], DECK + 0.15)].concat(spineEdge.slice().reverse()))
     };
 
     /* ---------- per-frame update ---------- */
@@ -672,14 +703,16 @@
       out.pedRing.instanceColor.needsUpdate = true;
 
       // energy flows
-      const F = out.flows, P = sim.p, pv = sim.pv[m], toLoad = sim.pvLoad[m] + sim.bessLoad[m] + sim.grid[m];
+      const F = out.flows, P = sim.p, pv = sim.pv[m], toLoad = sim.pvLoad[m] + sim.grid[m];
       const amt = (kw, ref) => Math.min(1, kw / ref);
       const setF = (fl, a, dir) => { fl.visible = a > 0.005; fl.material.uniforms.uAmt.value = a; fl.material.uniforms.uDir.value = dir; fl.material.uniforms.uTime.value = clock; };
       const pvA = amt(pv, P.pvKwp * 0.7);
       setF(F.pvA, pvA, 1); setF(F.pvB, pvA, 1); setF(F.pvC, pvA, 1); setF(F.pvMain, pvA, 1);
-      const bnet = sim.pvBess[m] - sim.bessLoad[m];
-      setF(F.bess, amt(Math.abs(bnet), P.bessKw * 0.6), bnet >= 0 ? 1 : -1);
-      setF(F.grid, amt(sim.grid[m], Math.max(200, P.gridKw * 0.6)), 1);
+      setF(F.inv, pvA, 1);
+      // grid line: import flows in (violet), export flows out (amber)
+      const gnet = sim.grid[m] - sim.export[m];
+      F.grid.material.uniforms.uColor.value.set(gnet >= 0 ? 0xa58bff : 0xf5b83d);
+      setF(F.grid, amt(Math.abs(gnet), Math.max(200, P.gridKw * 0.6)), gnet >= 0 ? 1 : -1);
       setF(F.jetty, amt(toLoad, 900), 1);
 
       // night lights
@@ -688,9 +721,10 @@
       for (let i = 0; i < out.lamps.n; i++) out.lamps.bulbs.setColorAt(i, bl);
       out.lamps.bulbs.instanceColor.needsUpdate = true;
       out.lamps.pools.material.opacity = 0.55 * night;
-      const soc = sim.soc[m];
-      out.beacons.forEach((bc, i) => { bc.material.color.set(bnet < -1 ? 0x4cc9f0 : bnet > 1 ? 0x3ddc97 : 0x8aa0aa); bc.scale.setScalar(0.8 + 0.4 * (0.5 + 0.5 * Math.sin(clock * 3 + i))); });
-      out.bessSoc = soc;
+      // inverter status LEDs: green while producing, grey at night; anemometer turns
+      const on = pv > 1;
+      out.leds.forEach((l, i) => l.material.color.set(on ? (i % 3 === 2 && Math.sin(clock * 6 + i) > 0 ? 0x1f7a52 : 0x3ddc97) : 0x55606a));
+      out.anemometer.rotation.y = clock * 5;
 
       // water ripple
       waterMat.normalMap.offset.set((clock * 0.004) % 1, (clock * 0.0025) % 1);
