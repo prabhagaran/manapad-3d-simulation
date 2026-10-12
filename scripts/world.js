@@ -582,11 +582,17 @@
       return mesh;
     }
     const pcsXY = [S.pcs.x + S.pcs.w / 2, S.pcs.y + S.pcs.h / 2];
+    const feeder = (pts) => {
+      const c = [pts.reduce((a, p) => a + p[0], 0) / pts.length, pts.reduce((a, p) => a + p[1], 0) / pts.length];
+      return [c, [(c[0] + S.solarHub[0]) / 2, (c[1] + S.solarHub[1]) / 2], S.solarHub];
+    };
     const spineEdge = spine.map((p, i) => { const [nx, nz] = out.landSide(i); return v3(p.x + nx * 1.75, DECK - 0.2, p.z + nz * 1.75); });
     out.flows = {
-      pvA: flow([[1186, 590], [1190, 620], S.solarHub], "#f5b83d", 0.5, 0.32),
-      pvB: flow([[1117, 600], [1150, 625], S.solarHub], "#f5b83d", 0.5, 0.32),
-      pvC: flow([[1150, 662], [1170, 650], S.solarHub], "#f5b83d", 0.5, 0.32),
+      // each block's feeder starts at the centroid of its own tables and runs to the inverter station,
+      // so it stays inside the fenced solar area (the fence is the tables' convex hull + 12 m)
+      pvA: flow(feeder(S.solarBlocks.A), "#f5b83d", 0.5, 0.32),
+      pvB: flow(feeder(S.solarBlocks.B), "#f5b83d", 0.5, 0.32),
+      pvC: flow(feeder(S.solarBlocks.C), "#f5b83d", 0.5, 0.32),
       pvMain: flow([S.solarHub, [1236, 700], [1270, 745], pcsXY], "#f5b83d", 0.5, 0.5),
       bess: flow([pcsXY, [1300, 771], [1315, 771]], "#3ddc97", 0.6, 0.5),
       grid: flow(null, "#a58bff", 0, 0.45, out.gridPoles.slice().reverse().map((p) => v3(p.x, 8.6, p.z)).concat([v3(W(...pcsXY).x, 3, W(...pcsXY).z)])),
